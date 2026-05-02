@@ -7,17 +7,26 @@
 // Deployed at: https://command-block-api.colbysthickey.workers.dev
 // Protected by Cloudflare Access (GitHub OAuth, allows choder01@pm.me)
 
+const ALLOWED_ORIGINS = new Set([
+  'https://command-block.pages.dev',
+  'https://cheddah01.github.io',
+]);
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
 
+    const origin = request.headers.get('Origin');
     const cors = {
-      'Access-Control-Allow-Origin': 'https://cheddah01.github.io',
+      'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin)
+        ? origin
+        : 'https://command-block.pages.dev',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Allow-Credentials': 'true',
+      'Vary': 'Origin',
     };
 
     if (method === 'OPTIONS') {
