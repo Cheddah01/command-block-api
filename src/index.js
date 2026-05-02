@@ -13,15 +13,20 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
+    const requestedHeaders = request.headers.get('Access-Control-Request-Headers');
     const cors = {
       'Access-Control-Allow-Origin': 'https://command-block.pages.dev',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': requestedHeaders || 'Content-Type',
       'Access-Control-Allow-Credentials': 'true',
+      'Vary': 'Origin, Access-Control-Request-Headers',
     };
 
     if (method === 'OPTIONS') {
-      return new Response(null, { headers: cors });
+      return new Response(null, {
+        status: 204,
+        headers: { ...cors, 'Access-Control-Max-Age': '86400' },
+      });
     }
 
     try {
