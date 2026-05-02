@@ -29,3 +29,35 @@ CREATE TABLE config_versions (
   created_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (config_id) REFERENCES configs(id)
 );
+
+-- Published plugins (public catalog) and their versioned jar releases.
+-- Jars stored in R2 under published-jars/{slug}/{slug}-{version}.jar.
+CREATE TABLE published_plugins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  tagline TEXT,
+  description_md TEXT,
+  mc_versions TEXT,
+  source_url TEXT,
+  support_url TEXT,
+  current_version_id INTEGER,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE published_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plugin_id INTEGER NOT NULL,
+  version TEXT NOT NULL,
+  changelog_md TEXT,
+  mc_version TEXT,
+  r2_key TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  size_bytes INTEGER,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (plugin_id) REFERENCES published_plugins(id)
+);
+
+CREATE INDEX idx_published_versions_plugin
+  ON published_versions(plugin_id, created_at DESC);
