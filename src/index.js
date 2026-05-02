@@ -8,7 +8,7 @@
 // Protected by Cloudflare Access (GitHub OAuth, allows choder01@pm.me)
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
@@ -388,6 +388,106 @@ export default {
         }
 
         return json({ ok: true }, cors);
+      }
+
+      // ============ PUBLIC: PUBLISHED PLUGINS ============
+      //
+      // Unauthenticated catalog routes. The worker is itself behind a
+      // Cloudflare Access application; for these /public/* paths to be
+      // reachable without a login, a separate Access app with a Bypass
+      // policy must cover the same hostname + /public path.
+      // See DEPLOYMENT.md for the one-time dashboard steps.
+
+      if (path === '/public/plugins' && method === 'GET') {
+        const { results } = await env.DB.prepare(`
+          SELECT p.id, p.slug, p.name, p.tagline, p.mc_versions,
+                 p.source_url, p.support_url, p.download_count,
+                 p.current_version_id, p.created_at, p.updated_at,
+                 (SELECT version FROM published_versions WHERE id = p.current_version_id) AS current_version
+          FROM published_plugins p
+          ORDER BY p.updated_at DESC
+        `).all();
+        return json(results, cors);
+      }
+
+      const pubGetMatch = path.match(/^\/public\/plugins\/([a-z0-9_-]+)$/);
+      if (pubGetMatch && method === 'GET') {
+        const slug = pubGetMatch[1];
+        const plugin = await env.DB.prepare(
+          'SELECT * FROM published_plugins WHERE slug = ?'
+        ).bind(slug).first();
+        if (!plugin) return error('Not found', 404, cors);
+
+        const { results: versions } = await env.DB.prepare(`
+          SELECT id, version, changelog_md, mc_version, filename, size_bytes,
+                 download_count, created_at
+          FROM published_versions WHERE plugin_id = ? ORDER BY created_at DESC
+        `).bind(plugin.id).all();
+
+        return json({ ...plugin, versions }, cors);
+      }
+
+      const pubDlCurMatch = path.match(/^\/public\/plugins\/([a-z0-9_-]+)\/download$/);
+      if (pubDlCurMatch && method === 'GET') {
+        const slug = pubDlCurMatch[1];
+        const plugin = await env.DB.prepare(
+          'SELECT * FROM published_plugins WHERE slug = ?'
+        ).bind(slug).first();
+        if (!plugin) return error('Not found', 404, cors);
+        if (!plugin.current_version_id) return error('No current version', 404, cors);
+
+        const ver = await env.DB.prepare(
+          'SELECT * FROM published_versions WHERE id = ?'
+        ).bind(plugin.current_version_id).first();
+        if (!ver) return error('Version metadata missing', 404, cors);
+
+        const obj = await env.FILES.get(ver.r2_key);
+        if (!obj) return error('File missing in storage', 404, cors);
+
+        ctx.waitUntil(Promise.all([
+          env.DB.prepare('UPDATE published_plugins  SET download_count = download_count + 1 WHERE id = ?').bind(plugin.id).run(),
+          env.DB.prepare('UPDATE published_versions SET download_count = download_count + 1 WHERE id = ?').bind(ver.id).run(),
+        ]));
+
+        return new Response(obj.body, {
+          headers: {
+            ...cors,
+            'Content-Type': 'application/java-archive',
+            'Content-Disposition': `attachment; filename="${ver.filename}"`,
+          },
+        });
+      }
+
+      const pubDlVerMatch = path.match(/^\/public\/plugins\/([a-z0-9_-]+)\/versions\/([^/]+)\/download$/);
+      if (pubDlVerMatch && method === 'GET') {
+        const slug = pubDlVerMatch[1];
+        const versionStr = decodeURIComponent(pubDlVerMatch[2]);
+
+        const plugin = await env.DB.prepare(
+          'SELECT id FROM published_plugins WHERE slug = ?'
+        ).bind(slug).first();
+        if (!plugin) return error('Not found', 404, cors);
+
+        const ver = await env.DB.prepare(
+          'SELECT * FROM published_versions WHERE plugin_id = ? AND version = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(plugin.id, versionStr).first();
+        if (!ver) return error('Version not found', 404, cors);
+
+        const obj = await env.FILES.get(ver.r2_key);
+        if (!obj) return error('File missing in storage', 404, cors);
+
+        ctx.waitUntil(Promise.all([
+          env.DB.prepare('UPDATE published_plugins  SET download_count = download_count + 1 WHERE id = ?').bind(plugin.id).run(),
+          env.DB.prepare('UPDATE published_versions SET download_count = download_count + 1 WHERE id = ?').bind(ver.id).run(),
+        ]));
+
+        return new Response(obj.body, {
+          headers: {
+            ...cors,
+            'Content-Type': 'application/java-archive',
+            'Content-Disposition': `attachment; filename="${ver.filename}"`,
+          },
+        });
       }
 
       // ============ HEALTH ============

@@ -42,6 +42,7 @@ CREATE TABLE published_plugins (
   source_url TEXT,
   support_url TEXT,
   current_version_id INTEGER,
+  download_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -55,6 +56,7 @@ CREATE TABLE published_versions (
   r2_key TEXT NOT NULL,
   filename TEXT NOT NULL,
   size_bytes INTEGER,
+  download_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (plugin_id) REFERENCES published_plugins(id)
 );
