@@ -1,0 +1,13 @@
+name = "command-block-api"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "command-block-files"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "command-block-db"
+database_id = "f20bf1a7-a56b-428d-86fb-194d80590542"
